@@ -15,6 +15,28 @@ export function ScanTab({ onItemsScanned }: ScanTabProps) {
   const [preview, setPreview] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const compressImage = (file: File, maxWidth = 1280, quality = 0.7): Promise<{ base64: string; mimeType: string }> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => {
+        const scale = Math.min(1, maxWidth / Math.max(img.width, img.height))
+        const w = Math.round(img.width * scale)
+        const h = Math.round(img.height * scale)
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        if (!ctx) { reject(new Error('Canvas not supported')); return }
+        ctx.drawImage(img, 0, 0, w, h)
+        const dataUrl = canvas.toDataURL('image/jpeg', quality)
+        const base64 = dataUrl.split(',')[1]
+        resolve({ base64, mimeType: 'image/jpeg' })
+      }
+      img.onerror = () => reject(new Error('图片加载失败'))
+      img.src = URL.createObjectURL(file)
+    })
+  }
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -29,17 +51,14 @@ export function ScanTab({ onItemsScanned }: ScanTabProps) {
     reader.onload = () => setPreview(reader.result as string)
     reader.readAsDataURL(file)
 
-    // Convert to base64
-    const arrayBuffer = await file.arrayBuffer()
-    const base64 = btoa(
-      new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-    )
-
     try {
+      // Compress image to stay under Vercel's 4.5MB body limit
+      const { base64, mimeType } = await compressImage(file)
+
       const res = await fetch('/api/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64, mimeType: file.type }),
+        body: JSON.stringify({ image: base64, mimeType }),
       })
 
       const json = await res.json()
