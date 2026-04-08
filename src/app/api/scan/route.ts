@@ -16,9 +16,10 @@ export async function POST(request: Request) {
     const items = await scanImage(body.image, body.mimeType)
     return NextResponse.json({ data: items } satisfies ApiResponse<typeof items>)
   } catch (error) {
-    console.error('POST /api/scan error:', error)
+    const message = error instanceof Error ? error.message : String(error)
+    console.error('POST /api/scan error:', message)
     return NextResponse.json(
-      { error: '图片识别失败，请重试', code: 'SCAN_ERROR' } satisfies ApiError,
+      { error: `图片识别失败: ${message}`, code: 'SCAN_ERROR' } satisfies ApiError,
       { status: 500 }
     )
   }
