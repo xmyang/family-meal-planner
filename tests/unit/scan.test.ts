@@ -125,7 +125,7 @@ describe('Scan API Route', () => {
     expect(json.data[0].name).toBe('鸡腿')
   })
 
-  it('POST Claude 调用失败时返回 500 + SCAN_ERROR', async () => {
+  it('POST Claude 调用失败时返回 500 + SCAN_ERROR 并包含错误详情', async () => {
     mockCreate.mockRejectedValue(new Error('Claude API down'))
 
     const { POST } = await import('@/app/api/scan/route')
@@ -139,6 +139,24 @@ describe('Scan API Route', () => {
 
     expect(response.status).toBe(500)
     expect(json.code).toBe('SCAN_ERROR')
-    expect(json.error).toBe('图片识别失败，请重试')
+    expect(json.error).toContain('图片识别失败')
+    expect(json.error).toContain('Claude API down')
+  })
+
+  it('POST 非 Error 类型异常也能返回错误信息', async () => {
+    mockCreate.mockRejectedValue('unexpected string error')
+
+    const { POST } = await import('@/app/api/scan/route')
+    const request = new Request('http://localhost/api/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: 'fakebase64', mimeType: 'image/jpeg' }),
+    })
+    const response = await POST(request)
+    const json = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(json.code).toBe('SCAN_ERROR')
+    expect(json.error).toContain('unexpected string error')
   })
 })
